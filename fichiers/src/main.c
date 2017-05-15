@@ -20,7 +20,7 @@ void update_refresh_rate (int p)
 {
   static int tab_refresh_rate [] = {1, 2, 5, 10, 100, 1000, 10000, 100000};
   static int i_refresh_rate = 0;
-  
+
   if ((i_refresh_rate == 0 && p < 0) || (i_refresh_rate == 7 && p > 0))
     return;
 
@@ -41,21 +41,26 @@ int main (int argc, char **argv)
   graphics_init (&argc, argv);
 
   if (opencl_used [version]) {
-
     ocl_init ();
     ocl_send_image (image);
   }
-  
+
+  if (init [version]) {
+    init[version] ();
+  }
+
+
+
   if (graphics_display_enabled ()) {
     // version graphique
 
-    
+
     unsigned long temps = 0;
     struct timeval t1, t2;
-    
+
     if (opencl_used [version])
 	graphics_share_texture_buffers ();
-    
+
     graphics_refresh ();
 
     for (int quit = 0; !quit;) {
@@ -67,7 +72,7 @@ int main (int argc, char **argv)
 
       do {
 	SDL_Event evt;
-	
+
 	while (SDL_PollEvent (&evt)) {
 
 	  switch (evt.type) {
@@ -89,7 +94,7 @@ int main (int argc, char **argv)
 	    case SDLK_DOWN :
 	      update_refresh_rate(-1);
 	      break;
-	      
+
 	    case SDLK_UP :
 	      update_refresh_rate(1);
 	      break;
@@ -125,11 +130,11 @@ int main (int argc, char **argv)
 
 	    duree_iteration = TIME_DIFF (t1,t2) ;
 	    temps += duree_iteration;
-	    int nbiter = (n > 0 ?  n : refresh_rate); 
+	    int nbiter = (n > 0 ?  n : refresh_rate);
 	    fprintf (stderr,
 		     "\r dernière iteration  %ld.%03ld -  temps moyen par itération : %ld.%03ld ",
 		     duree_iteration/ nbiter / 1000, (duree_iteration/nbiter) % 1000 ,
-		     temps / 1000 / (nbiter+iterations) , (temps/(nbiter+iterations)) % 1000);	
+		     temps / 1000 / (nbiter+iterations) , (temps/(nbiter+iterations)) % 1000);
 	  } else
 	    n = compute [version] (refresh_rate);
 
@@ -144,7 +149,7 @@ int main (int argc, char **argv)
 
 	  } else
 	    iterations += refresh_rate;
-	  
+
 	  graphics_refresh ();
 	}
       }
@@ -154,7 +159,7 @@ int main (int argc, char **argv)
     unsigned long temps;
     struct timeval t1, t2;
     int n;
-    
+
     gettimeofday (&t1, NULL);
 
     while (!stable) {
@@ -175,7 +180,7 @@ int main (int argc, char **argv)
     }
 
     gettimeofday (&t2, NULL);
-    
+
     temps = TIME_DIFF (t1, t2);
     fprintf (stderr, "%ld.%03ld\n", temps / 1000, temps % 1000);
   }

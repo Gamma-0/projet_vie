@@ -4,8 +4,6 @@
 #include "debug.h"
 #include "ocl.h"
 
-#include <stdbool.h>
-
 #define CEIL(X) ((X-(int)(X)) > 0 ? (int)(X+1) : (int)(X))
 
 #define RED_MASK	0XFF000000
@@ -24,10 +22,16 @@
 #define TILE 32
 
 
+int nb_tiles;
+bool** tile_changed;
+
 unsigned version = 0;
 
 void first_touch_v1 (void);
 void first_touch_v2 (void);
+
+void init_v2(void);
+void init_v5(void);
 
 unsigned compute_v0 (unsigned nb_iter);
 unsigned compute_v1 (unsigned nb_iter);
@@ -54,6 +58,20 @@ void_func_t first_touch [] = { // TODO
 	NULL, 				// OpenCl base
 	NULL, 				// OpenCl optimize
 	NULL 				// OpenCl + OpenMP
+};
+
+void_func_t init [] = {
+	NULL, 	// sequential base
+	NULL, 	// sequential tiled
+	init_v2, 	// sequential optimized
+	NULL, 	// OpenMP for base
+	NULL, 	// OpenMP for tiled
+	init_v5, 	// OpenMP for optimized
+	NULL, 	// OpenMP task tiled
+	init_v5, 	// OpenMP task optimized
+	NULL, 	// OpenCl base
+	NULL, 	// OpenCl optimize
+	NULL 	// OpenCl + OpenMP
 };
 
 int_func_t compute [] = {
@@ -174,52 +192,52 @@ unsigned compute_v1 (unsigned nb_iter)
 }
 
 ///////////////////////////// Version 2 : séquentielle optimisée
+void init_v2 (){
+	nb_tiles = CEIL((DIM*1.0)/TILE);
+	tile_changed=malloc(sizeof(bool*)*nb_tiles);
+
+	for (int i = 0; i < nb_tiles; ++i){
+		tile_changed[i]=malloc(sizeof(bool)*nb_tiles);
+		for (int j = 0; j < nb_tiles; ++j){
+			tile_changed[i][j] = true;
+		}
+	}
+}
 
 unsigned compute_v2 (unsigned nb_iter)
 {
 	bool change = true;
-	int nb_tiles = CEIL((DIM*1.0)/TILE);
-	bool tile_change[nb_tiles][nb_tiles];
-	for (int i = 0; i < nb_tiles; ++i){
-		for (int j = 0; j < nb_tiles; ++j){
-			tile_change[i][j] = true;
-		}
-	}
 
-	unsigned it;
+	unsigned it, calc;
 	for (it = 1; it <= nb_iter && change; ++it) {
 		change = false;
+		calc = 0;
+
 		for (unsigned i = 1; i < DIM-1; i += TILE)
 			for (unsigned j = 1; j < DIM-1; j += TILE) {
 				unsigned i_tile = (i-1)/TILE;
 				unsigned j_tile = (j-1)/TILE;
-				if (tile_change[i_tile][j_tile]){
-					tile_change[i_tile][j_tile] = false;
+				if (tile_changed[i_tile][j_tile]){
+					++calc;
+					tile_changed[i_tile][j_tile] = false;
 					for (unsigned i2 = i, end_tile_i = MIN(i + TILE, DIM-1); i2 < end_tile_i; ++i2)
 						for (unsigned j2 = j, end_tile_j = MIN(j + TILE, DIM-1); j2 < end_tile_j; ++j2)
 							if (change_state(i2, j2)){
-								tile_change[i_tile][j_tile] = true;
+
+								//printf("Tuile %dx%d\n", i_tile, j_tile);
+								tile_changed[i_tile][j_tile] = true;
 								change = true;
 
-								if (i2 == end_tile_i-1){
-									if (i_tile != nb_tiles -1) { //bas
-										tile_change[i_tile+1][j_tile] = true;
-									}
-								} else if (i2 == i){
-									if (i_tile != 0) { //haut
-										tile_change[i_tile-1][j_tile] = true;
-									}
+								if (i2 == end_tile_i-1 && i_tile != nb_tiles -1) { 	//bas
+										tile_changed[i_tile+1][j_tile] = true;
+								} else if (i2 == i && i_tile != 0) { 				//haut
+										tile_changed[i_tile-1][j_tile] = true;
 								}
-								if (j2 == end_tile_j-1){
 
-									if (j_tile != nb_tiles -1) { //droite
-										tile_change[i_tile][j_tile+1] = true;
-									}
-
-								} else if (j2 == j){
-									if (j_tile != 0) { //gauche
-										tile_change[i_tile][j_tile-1] = true;
-									}
+								if (j2 == end_tile_j-1 && j_tile != nb_tiles -1) { 	//droite
+										tile_changed[i_tile][j_tile+1] = true;
+								} else if (j2 == j && j_tile != 0) { 				//gauche
+										tile_changed[i_tile][j_tile-1] = true;
 								}
 
 							}
@@ -250,7 +268,7 @@ unsigned compute_v3 (unsigned nb_iter)
 	unsigned it;
 	for (it = 1; it <= nb_iter && change; ++it) {
 		change = false;
-		#pragma omp parallel for schedule(static) // collapse(2)
+		#pragma omp parallel for schedule(static) //collapse(2) et dynamic a discuter
 		for (int i = 1; i < DIM-1; ++i)
 			for (int j = 1; j < DIM-1; ++j)
 				if (change_state(i, j))
@@ -291,21 +309,67 @@ void first_touch_v2 ()
 }
 
 // Renvoie le nombre d'itérations effectuées avant stabilisation, ou 0
+void init_v5(){
+	nb_tiles = CEIL((DIM*1.0)/TILE);
+	tile_changed=malloc(sizeof(bool*)*nb_tiles);
+
+	#pragma omp parallel for schedule(static)
+	for (int i = 0; i < nb_tiles; ++i){
+		tile_changed[i]=malloc(sizeof(bool)*nb_tiles);
+		for (int j = 0; j < nb_tiles; ++j){
+			tile_changed[i][j] = true;
+		}
+	}
+}
+
 unsigned compute_v5 (unsigned nb_iter)
 {
-	return 0; // on ne s'arrête jamais
+	bool change = true;
+
+	unsigned it;
+	for (it = 1; it <= nb_iter && change; ++it) {
+		change = false;
+		#pragma omp parallel for collapse(2) schedule(static)
+		for (unsigned i = 1; i < DIM-1; i += TILE)
+			for (unsigned j = 1; j < DIM-1; j += TILE) {
+				unsigned i_tile = (i-1)/TILE;
+				unsigned j_tile = (j-1)/TILE;
+				if (tile_changed[i_tile][j_tile]){
+					tile_changed[i_tile][j_tile] = false;
+					for (unsigned i2 = i, end_tile_i = MIN(i + TILE, DIM-1); i2 < end_tile_i; ++i2)
+						for (unsigned j2 = j, end_tile_j = MIN(j + TILE, DIM-1); j2 < end_tile_j; ++j2)
+							if (change_state(i2, j2)){
+								tile_changed[i_tile][j_tile] = true;
+								change = true;
+
+								if (i2 == end_tile_i-1 && i_tile != nb_tiles -1) { 	//bas
+										tile_changed[i_tile+1][j_tile] = true;
+								} else if (i2 == i && i_tile != 0) { 				//haut
+										tile_changed[i_tile-1][j_tile] = true;
+								}
+
+								if (j2 == end_tile_j-1 && j_tile != nb_tiles -1) { 	//droite
+										tile_changed[i_tile][j_tile+1] = true;
+								} else if (j2 == j && j_tile != 0) { 				//gauche
+										tile_changed[i_tile][j_tile-1] = true;
+								}
+
+							}
+				}
+			}
+		swap_images ();
+	}
+	return change ? 0 : it;
 }
 
 ///////////////////////////// Version OpenMP task tuilée
 
-unsigned compute_v6 (unsigned nb_iter)
-{
+unsigned compute_v6 (unsigned nb_iter){
 	bool change = true;
 	unsigned it;
 	for (it = 1; it <= nb_iter && change; ++it) {
 		change = false;
 		#pragma omp parallel
-		//#pragma omp for collapse(2) schedule(static)
 		for (unsigned i = 1; i < DIM-1; i += TILE)
 			for (unsigned j = 1; j < DIM-1; j += TILE) {
 				#pragma omp single nowait
@@ -323,10 +387,50 @@ unsigned compute_v6 (unsigned nb_iter)
 	return change ? 0 : it;
 }
 
+
 ///////////////////////////// Version OpenMP task optimisée
 
-unsigned compute_v7 (unsigned nb_iter){
- return 0;
+unsigned compute_v7 (unsigned nb_iter)
+{
+	bool change = true;
+	unsigned it;
+	for (it = 1; it <= nb_iter && change; ++it) {
+		change = false;
+		#pragma omp parallel
+		for (unsigned i = 1; i < DIM-1; i += TILE)
+			for (unsigned j = 1; j < DIM-1; j += TILE) {
+				unsigned i_tile = (i-1)/TILE;
+				unsigned j_tile = (j-1)/TILE;
+				if (tile_changed[i_tile][j_tile]){
+					#pragma omp single nowait
+					#pragma omp task shared(change)
+					{
+						tile_changed[i_tile][j_tile] = false;
+						for (unsigned i2 = i, end_tile_i = MIN(i + TILE, DIM-1); i2 < end_tile_i; ++i2)
+							for (unsigned j2 = j, end_tile_j = MIN(j + TILE, DIM-1); j2 < end_tile_j; ++j2)
+								if (change_state(i2, j2)){
+									tile_changed[i_tile][j_tile] = true;
+									change = true;
+
+									if (i2 == end_tile_i-1 && i_tile != nb_tiles -1) { 	//bas
+											tile_changed[i_tile+1][j_tile] = true;
+									} else if (i2 == i && i_tile != 0) { 				//haut
+											tile_changed[i_tile-1][j_tile] = true;
+									}
+
+									if (j2 == end_tile_j-1 && j_tile != nb_tiles -1) { 	//droite
+											tile_changed[i_tile][j_tile+1] = true;
+									} else if (j2 == j && j_tile != 0) { 				//gauche
+											tile_changed[i_tile][j_tile-1] = true;
+									}
+								}
+					}
+				}
+			}
+		swap_images ();
+	}
+
+	return change ? 0 : it;
 }
 
 
