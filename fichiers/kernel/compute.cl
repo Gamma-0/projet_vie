@@ -65,25 +65,13 @@ static unsigned int4_to_color (int4 i)
 }
 
 
-__kernel void life (__global unsigned *in, __global unsigned *out)
+__kernel void life (__global unsigned *in, __global unsigned *out, __global unsigned char *change)
 {
-	//TODO ajouter __global unsigned char *stable
 	int x = get_global_id(0);
 	int y = get_global_id(1);
 
-
 	if (y > 0 && y < DIM-1 && x > 0 && x < DIM-1) {
 		int count = 0;
-
-		 // color_to_int4(in[(y)*DIM+x]) * (int4)8
-		/*if (in[(y)*DIM+x-1] != 0) count++;
-		if (in[(y-1)*DIM+x] != 0) count++;
-		if (in[(y+1)*DIM+x] != 0) count++;
-		if (in[(y)*DIM+x+1] != 0) count++;
-		if (in[(y-1)*DIM+x-1] != 0) count++;
-		if (in[(y+1)*DIM+x-1] != 0) count++;
-		if (in[(y+1)*DIM+x+1] != 0) count++;
-		if (in[(y-1)*DIM+x+1] != 0) count++;*/
 
 		count += (in[(y)*DIM+x-1] == 0) ? 0 : 1;
 		count += (in[(y-1)*DIM+x] == 0) ? 0 : 1;
@@ -93,7 +81,6 @@ __kernel void life (__global unsigned *in, __global unsigned *out)
 		count += (in[(y+1)*DIM+x-1] == 0) ? 0 : 1;
 		count += (in[(y+1)*DIM+x+1] == 0) ? 0 : 1;
 		count += (in[(y-1)*DIM+x+1] == 0) ? 0 : 1;
-
 
 		if (in[y*DIM+x] == 0)
 			if (count == 3)
@@ -106,9 +93,11 @@ __kernel void life (__global unsigned *in, __global unsigned *out)
 			else
 				out[y*DIM+x] = 0;
 
-		//out[y*DIM+x] = int4_to_color(s/(int4)16);
+		if ((in[y*DIM+x] & ALPHA_MASK) != (out[y*DIM+x] & ALPHA_MASK))
+			change = 1;
 	}
 }
+
 
 
 // NE PAS MODIFIER

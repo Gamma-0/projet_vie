@@ -42,7 +42,7 @@ cl_context context;
 cl_kernel update_kernel;
 cl_kernel compute_kernel;
 cl_command_queue queue;
-cl_mem tex_buffer, cur_buffer, next_buffer;
+cl_mem tex_buffer, cur_buffer, next_buffer, change_buffer;
 
 static size_t file_size (const char *filename)
 {
@@ -277,7 +277,13 @@ void ocl_init (void)
     exit_with_error ("Failed to allocate output buffer");
 
   printf ("Using %dx%d workitems grouped in %dx%d tiles \n", SIZE, SIZE, TILEX, TILEY);
+
+  change_buffer = clCreateBuffer (context, CL_MEM_READ_WRITE, sizeof(char), NULL, NULL);
+
+  if (!change_buffer)
+    exit_with_error ("Failed to allocate stable buffer");
 }
+
 
 void ocl_map_textures (GLuint texid)
 {
@@ -299,7 +305,8 @@ void ocl_send_image (unsigned *image)
 
   PRINT_DEBUG ('o', "Initial image sent to device.\n");
 }
-
+/*
+//origin
 unsigned ocl_compute (unsigned nb_iter)
 {
   size_t global[2] = { SIZE, SIZE };  // global domain size for our calculation
@@ -325,29 +332,35 @@ unsigned ocl_compute (unsigned nb_iter)
 
   return 0;
 }
+*/
 
 
-/*
 unsigned ocl_compute (unsigned nb_iter)
 {
   size_t global[2] = { SIZE, SIZE };  // global domain size for our calculation
   size_t local[2]  = { TILEX, TILEY };  // local domain size for our calculation
 
   unsigned it;
-  bool change = true;
+  char change;
 
   for (it = 1; it <= nb_iter; it ++) {
-
     // Set kernel arguments
-    //
+	change = 0;
+
     err = 0;
-    err  = clSetKernelArg (compute_kernel, 0, sizeof (cl_mem), &cur_buffer);
-    err  = clSetKernelArg (compute_kernel, 1, sizeof (cl_mem), &next_buffer);
+    err = clSetKernelArg (compute_kernel, 0, sizeof (cl_mem), &cur_buffer);
+    err = clSetKernelArg (compute_kernel, 1, sizeof (cl_mem), &next_buffer);
+    err = clSetKernelArg (compute_kernel, 2, sizeof (cl_mem), &change_buffer);
     check (err, "Failed to set kernel arguments");
 
     err = clEnqueueNDRangeKernel (queue, compute_kernel, 2, NULL, global, local,
 				  0, NULL, NULL);
     check(err, "Failed to execute kernel");
+
+    err = clEnqueueReadBuffer (queue, change_buffer, CL_TRUE, 0, sizeof (char), &change,
+								0, NULL, NULL);
+    check (err, "Failed to read change_buffer");
+
 
     // Swap buffers
     { cl_mem tmp = cur_buffer; cur_buffer = next_buffer; next_buffer = tmp; }
@@ -356,7 +369,13 @@ unsigned ocl_compute (unsigned nb_iter)
 
   return change ? 0 : it;
 }
-*/
+
+
+
+
+
+
+
 
 
 
