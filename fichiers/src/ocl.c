@@ -42,7 +42,8 @@ cl_context context;
 cl_kernel update_kernel;
 cl_kernel compute_kernel;
 cl_command_queue queue;
-cl_mem tex_buffer, cur_buffer, next_buffer, change_buffer;
+cl_mem tex_buffer, cur_buffer, next_buffer;
+cl_mem change_buffer, cur_tile_buffer, next_tile_buffer;
 
 static size_t file_size (const char *filename)
 {
@@ -279,9 +280,28 @@ void ocl_init (void)
   printf ("Using %dx%d workitems grouped in %dx%d tiles \n", SIZE, SIZE, TILEX, TILEY);
 
   change_buffer = clCreateBuffer (context, CL_MEM_READ_WRITE, sizeof(char), NULL, NULL);
-
   if (!change_buffer)
     exit_with_error ("Failed to allocate stable buffer");
+
+  unsigned nb_tiles = ((DIM + TILEX-1) / TILEX);
+
+  cur_tile_buffer = clCreateBuffer (context, CL_MEM_READ_WRITE, sizeof(char) * nb_tiles * nb_tiles, NULL, NULL);
+  if (!cur_tile_buffer)
+    exit_with_error ("Failed to allocate current tile buffer");
+
+  /*
+  char buf[nb_tiles * nb_tiles];
+  memset(buf, false, nb_tiles * nb_tiles * sizeof(char));
+
+  err = clEnqueueWriteBuffer (queue, cur_tile_buffer, CL_TRUE, 0,
+							sizeof (char) * nb_tiles * nb_tiles,
+							buf, 0, NULL, NULL);
+  check (err, "Failed to write to cur_tile_buffer");
+  */
+
+  next_tile_buffer = clCreateBuffer (context, CL_MEM_READ_WRITE, sizeof(char) * nb_tiles * nb_tiles, NULL, NULL);
+  if (!next_tile_buffer)
+    exit_with_error ("Failed to allocate next tile buffer");
 }
 
 
@@ -305,7 +325,7 @@ void ocl_send_image (unsigned *image)
 
   PRINT_DEBUG ('o', "Initial image sent to device.\n");
 }
-/*
+
 //origin
 unsigned ocl_compute (unsigned nb_iter)
 {
@@ -332,10 +352,10 @@ unsigned ocl_compute (unsigned nb_iter)
 
   return 0;
 }
-*/
 
 
-unsigned ocl_compute (unsigned nb_iter)
+
+unsigned ocl_base (unsigned nb_iter)
 {
   size_t global[2] = { SIZE, SIZE };  // global domain size for our calculation
   size_t local[2]  = { TILEX, TILEY };  // local domain size for our calculation
@@ -346,8 +366,12 @@ unsigned ocl_compute (unsigned nb_iter)
   for (it = 1; it <= nb_iter; it ++) {
     // Set kernel arguments
 	change = 0;
-
     err = 0;
+
+	err = clEnqueueWriteBuffer (queue, change_buffer, CL_TRUE, 0, sizeof (char), &change,
+								0, NULL, NULL);
+	check (err, "Failed to write to change_buffer");
+
     err = clSetKernelArg (compute_kernel, 0, sizeof (cl_mem), &cur_buffer);
     err = clSetKernelArg (compute_kernel, 1, sizeof (cl_mem), &next_buffer);
     err = clSetKernelArg (compute_kernel, 2, sizeof (cl_mem), &change_buffer);
@@ -361,19 +385,68 @@ unsigned ocl_compute (unsigned nb_iter)
 								0, NULL, NULL);
     check (err, "Failed to read change_buffer");
 
-
     // Swap buffers
     { cl_mem tmp = cur_buffer; cur_buffer = next_buffer; next_buffer = tmp; }
 
   }
-
   return change ? 0 : it;
 }
 
 
 
+unsigned ocl_optimized (unsigned nb_iter)
+{
+  size_t global[2] = { SIZE, SIZE };  // global domain size for our calculation
+  size_t local[2]  = { TILEX, TILEY };  // local domain size for our calculation
 
+  unsigned it;
+  char change;
+  unsigned nb_tiles = ((DIM + TILEX-1) / TILEX);
 
+  char buf[nb_tiles * nb_tiles];
+  memset(buf, 0, nb_tiles * nb_tiles * sizeof(char));
+
+  err = clEnqueueWriteBuffer (queue, cur_tile_buffer, CL_TRUE, 0,
+						  sizeof (char) * nb_tiles * nb_tiles,
+						  buf, 0, NULL, NULL);
+  check (err, "Failed to write to cur_tile_buffer");
+
+  for (it = 1; it <= nb_iter; it ++) {
+    // Set kernel arguments
+	change = 0;
+    err = 0;
+
+	err = clEnqueueWriteBuffer (queue, change_buffer, CL_TRUE, 0, sizeof (char), &change,
+								0, NULL, NULL);
+	check (err, "Failed to write to change_buffer");
+
+	err = clEnqueueWriteBuffer (queue, next_tile_buffer, CL_TRUE, 0,
+								sizeof (char) * nb_tiles * nb_tiles,
+								buf, 0, NULL, NULL);
+	check (err, "Failed to write to next_tile_buffer");
+
+    err = clSetKernelArg (compute_kernel, 0, sizeof (cl_mem), &cur_buffer);
+    err = clSetKernelArg (compute_kernel, 1, sizeof (cl_mem), &next_buffer);
+    err = clSetKernelArg (compute_kernel, 2, sizeof (cl_mem), &change_buffer);
+	err = clSetKernelArg (compute_kernel, 3, sizeof (cl_mem), &cur_tile_buffer);
+	check (err, "Failed to set kernel arguments 3");
+	err = clSetKernelArg (compute_kernel, 4, sizeof (cl_mem), &next_tile_buffer);
+    check (err, "Failed to set kernel arguments");
+
+    err = clEnqueueNDRangeKernel (queue, compute_kernel, 2, NULL, global, local,
+				  0, NULL, NULL);
+    check(err, "Failed to execute kernel");
+
+    err = clEnqueueReadBuffer (queue, change_buffer, CL_TRUE, 0, sizeof (char), &change,
+								0, NULL, NULL);
+    check (err, "Failed to read change_buffer");
+
+    // Swap buffers
+    { cl_mem tmp = cur_buffer; cur_buffer = next_buffer; next_buffer = tmp; }
+	{ cl_mem tmp = cur_tile_buffer; cur_tile_buffer = next_tile_buffer; next_tile_buffer = tmp; }
+  }
+  return change ? 0 : it;
+}
 
 
 

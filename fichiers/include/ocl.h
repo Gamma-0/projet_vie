@@ -11,6 +11,9 @@ unsigned ocl_compute (unsigned nb_iter);
 void ocl_wait (void);
 void ocl_update_texture (void);
 
+unsigned ocl_base(unsigned nb_iter);
+unsigned ocl_optimized(unsigned nb_iter);
+
 extern unsigned SIZE, TILE;
 
 #endif

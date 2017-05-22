@@ -56,7 +56,7 @@ void_func_t first_touch [] = { // TODO
 	NULL, 				// OpenMP task tiled
 	NULL, 				// OpenMP task optimized
 	NULL, 				// OpenCl base
-	NULL, 				// OpenCl optimize
+	NULL, 				// OpenCl optimized
 	NULL 				// OpenCl + OpenMP
 };
 
@@ -437,11 +437,11 @@ unsigned compute_v7 (unsigned nb_iter)
 ///////////////////////////// Version OpenCL
 // Renvoie le nombre d'itérations effectuées avant stabilisation, ou 0
 unsigned compute_v8 (unsigned nb_iter){
-	return ocl_compute (nb_iter);
+	return ocl_base (nb_iter);
 }
 
 unsigned compute_v9 (unsigned nb_iter){
- return 0;
+	return ocl_optimized (nb_iter);;
 }
 
 ///////////////////////////// Version OpenCL + OpenMP
