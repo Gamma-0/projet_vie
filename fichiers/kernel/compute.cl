@@ -114,10 +114,18 @@ __kernel void life_opti (__global unsigned *in,
 	unsigned xTile = x / TILEX;
 	unsigned yTile = y / TILEY;
 
-	if (!curr_tile[xTile + nb_tiles  * yTile])	{
+	if (curr_tile[xTile + nb_tiles  * yTile]) {
 		if (y > 0 && y < DIM-1 && x > 0 && x < DIM-1) {
 			int count = 0;
 
+			/*count += ((in[(y)*DIM+x-1] & RED_MASK)== 0) ? 0 : 1;
+			count += ((in[(y-1)*DIM+x] & RED_MASK)== 0) ? 0 : 1;
+			count += ((in[(y+1)*DIM+x] & RED_MASK)== 0) ? 0 : 1;
+			count += ((in[(y)*DIM+x+1] & RED_MASK)== 0) ? 0 : 1;
+			count += ((in[(y-1)*DIM+x-1] & RED_MASK)== 0) ? 0 : 1;
+			count += ((in[(y+1)*DIM+x-1] & RED_MASK)== 0) ? 0 : 1;
+			count += ((in[(y+1)*DIM+x+1] & RED_MASK)== 0) ? 0 : 1;
+			count += ((in[(y-1)*DIM+x+1] & RED_MASK)== 0) ? 0 : 1;*/
 			count += (in[(y)*DIM+x-1] == 0) ? 0 : 1;
 			count += (in[(y-1)*DIM+x] == 0) ? 0 : 1;
 			count += (in[(y+1)*DIM+x] == 0) ? 0 : 1;
@@ -127,7 +135,7 @@ __kernel void life_opti (__global unsigned *in,
 			count += (in[(y+1)*DIM+x+1] == 0) ? 0 : 1;
 			count += (in[(y-1)*DIM+x+1] == 0) ? 0 : 1;
 
-			if (in[y*DIM+x] == 0)
+			if ((in[y*DIM+x] /*& RED_MASK*/) == 0)
 				if (count == 3)
 					out[y*DIM+x] = RED;
 				else
@@ -139,29 +147,68 @@ __kernel void life_opti (__global unsigned *in,
 					out[y*DIM+x] = 0;
 
 
-			if ((RED_MASK & in[y*DIM+x]) != (RED_MASK & out[y*DIM+x])) {
-
-				unsigned end_tile_x = (xTile+1) * TILEX < DIM-1 ? (xTile+1) * TILEX : DIM-1;
-				unsigned end_tile_y = (yTile+1) * TILEY < DIM-1 ? (xTile+1) * TILEY : DIM-1;
-
-				next_tile[xTile + nb_tiles * yTile] = false;
+			if ((RED_MASK & in[y*DIM+x]) != (RED_MASK & out[y*DIM+x])){
 				*change = 1;
+				next_tile[xTile + yTile * nb_tiles] = true;
 
-				if (x == end_tile_x && xTile != nb_tiles -1) { 	//bas
-						next_tile[xTile+1 + yTile * nb_tiles] = false;
-				} else if (/*x == i && */xTile != 0) { 				//haut
-						next_tile[xTile-1 + yTile * nb_tiles] = false;
+				if (xTile < nb_tiles -1) {	//droite
+					next_tile[xTile+1 + yTile * nb_tiles] = true;
+					if (yTile < nb_tiles -1) {	//bas
+						next_tile[(xTile+1) + (yTile+1) * nb_tiles] = true;
+					}
+					if (yTile > 0) {	//haut
+						next_tile[(xTile+1) + (yTile-1) * nb_tiles] = true;
+					}
+				}
+				if (xTile > 0) {	//gauche
+					next_tile[xTile-1 + yTile * nb_tiles] = true;
+					if (yTile < nb_tiles -1) {	//bas
+						next_tile[(xTile-1) + (yTile+1) * nb_tiles] = true;
+					}
+					if (yTile > 0) {	//haut
+						next_tile[(xTile-1) + (yTile-1) * nb_tiles] = true;
+					}
 				}
 
-				if (y == end_tile_y && yTile != nb_tiles -1) { 	//droite
-						next_tile[xTile + (yTile+1) * nb_tiles] = false;
-				} else if (/*y == j && */yTile != 0) { 				//gauche
-						next_tile[xTile + (yTile-1) * nb_tiles] = false;
+				if (yTile < nb_tiles -1) {	//bas
+					next_tile[xTile + (yTile+1) * nb_tiles] = true;
 				}
+				if (yTile > 0) {	//haut
+					next_tile[xTile + (yTile-1) * nb_tiles] = true;
+				}
+
+				/*
+				unsigned end_tile_x = (xTile+1) * TILEX < DIM-1 ? (xTile+1) * TILEX : DIM-1;
+				unsigned end_tile_y = (yTile+1) * TILEY < DIM-1 ? (yTile+1) * TILEY : DIM-1;
+
+				if (x == end_tile_x && xTile != nb_tiles -1) { 	//droite
+					next_tile[xTile+1 + yTile * nb_tiles] = true;
+					if (y == end_tile_y && yTile != nb_tiles -1) { 	//bas
+						next_tile[xTile+1 + (yTile+1) * nb_tiles] = true;
+					}
+					if (y == yTile * TILEY +1 && yTile != 0) {	//haut
+						next_tile[xTile+1 + (yTile-1) * nb_tiles] = true;
+					}
+				}
+				if (x == xTile * TILEX +1 && xTile != 0) {	//gauche
+					next_tile[xTile-1 + yTile * nb_tiles] = true;
+					if (y == end_tile_y && yTile != nb_tiles -1) { 	//bas
+						next_tile[xTile-1 + (yTile+1) * nb_tiles] = true;
+					}
+					if (y == yTile * TILEY +1 && yTile != 0) {	//haut
+						next_tile[xTile-1 + (yTile-1) * nb_tiles] = true;
+					}
+				}
+				if (y == end_tile_y && yTile != nb_tiles -1) { 	//bas
+					next_tile[xTile + (yTile+1) * nb_tiles] = true;
+				}
+				if (y == yTile * TILEY +1 && yTile != 0) {	//haut
+					next_tile[xTile + (yTile-1) * nb_tiles] = true;
+				}*/
 
 			}
 		}
-
+		//out[y*DIM+x] |= BLUE;
 	}
 }
 

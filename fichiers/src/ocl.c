@@ -289,15 +289,15 @@ void ocl_init (void)
   if (!cur_tile_buffer)
     exit_with_error ("Failed to allocate current tile buffer");
 
-  /*
   char buf[nb_tiles * nb_tiles];
-  memset(buf, false, nb_tiles * nb_tiles * sizeof(char));
+  memset(buf, 1, nb_tiles * nb_tiles * sizeof(char));
 
   err = clEnqueueWriteBuffer (queue, cur_tile_buffer, CL_TRUE, 0,
-							sizeof (char) * nb_tiles * nb_tiles,
-							buf, 0, NULL, NULL);
+						  sizeof (char) * nb_tiles * nb_tiles,
+						  buf, 0, NULL, NULL);
   check (err, "Failed to write to cur_tile_buffer");
-  */
+
+
 
   next_tile_buffer = clCreateBuffer (context, CL_MEM_READ_WRITE, sizeof(char) * nb_tiles * nb_tiles, NULL, NULL);
   if (!next_tile_buffer)
@@ -406,11 +406,6 @@ unsigned ocl_optimized (unsigned nb_iter)
   char buf[nb_tiles * nb_tiles];
   memset(buf, 0, nb_tiles * nb_tiles * sizeof(char));
 
-  err = clEnqueueWriteBuffer (queue, cur_tile_buffer, CL_TRUE, 0,
-						  sizeof (char) * nb_tiles * nb_tiles,
-						  buf, 0, NULL, NULL);
-  check (err, "Failed to write to cur_tile_buffer");
-
   for (it = 1; it <= nb_iter; it ++) {
     // Set kernel arguments
 	change = 0;
@@ -429,7 +424,6 @@ unsigned ocl_optimized (unsigned nb_iter)
     err = clSetKernelArg (compute_kernel, 1, sizeof (cl_mem), &next_buffer);
     err = clSetKernelArg (compute_kernel, 2, sizeof (cl_mem), &change_buffer);
 	err = clSetKernelArg (compute_kernel, 3, sizeof (cl_mem), &cur_tile_buffer);
-	check (err, "Failed to set kernel arguments 3");
 	err = clSetKernelArg (compute_kernel, 4, sizeof (cl_mem), &next_tile_buffer);
     check (err, "Failed to set kernel arguments");
 
