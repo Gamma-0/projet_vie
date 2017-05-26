@@ -9,7 +9,7 @@ library(Hmisc) # contains errbar
 args = commandArgs(trailingOnly=TRUE)
 
 
-nbFichiers = length(args) - 1
+nbFichiers = length(args) - 2
 
 if (nbFichiers < 1) {
   stop("At least two argument must be supplied filename [list of filenames] reference-time", call.=FALSE)
@@ -36,8 +36,8 @@ for(i in 1:nbFichiers)
         ymax = max(max(tables[[i]][,2]+ sdtables[[i]][,2]),ymax)
     }
 
-
-pdf("speedup.pdf")
+pdf(paste("speedup_", args[nbFichiers+2], ".pdf", sep=""))
+#pdf("speedup.pdf")
 
 
 plot(1,type='n',xlim=c(0,xmax),ylim=c(0,ymax),xlab='#threads', ylab='speedup')
