@@ -35,12 +35,12 @@ unsigned TILEX = 16;
 unsigned TILEY = 16;
 unsigned SIZE = 0;
 
-static char *kernel_name = "scrollup";
+static char *kernel_name = "transpose"; // Useless for the game of life!
 
 cl_int err;
 cl_context context;
 cl_kernel update_kernel;
-cl_kernel compute_kernel;
+cl_kernel compute_kernel, compute_kernel_base, compute_kernel_optimized;
 cl_command_queue queue;
 cl_mem tex_buffer, cur_buffer, next_buffer;
 cl_mem change_buffer, cur_tile_buffer, next_tile_buffer;
@@ -138,7 +138,7 @@ void ocl_init (void)
   else
     TILEY = TILEX;
 
-  str = getenv ("KERNEL");
+  str = getenv ("KERNEL"); // Useless for the game of life!
   if (str != NULL)
     kernel_name = str;
 
@@ -252,13 +252,20 @@ void ocl_init (void)
 
   // Create the compute kernel in the program we wish to run
   //
-  compute_kernel = clCreateKernel (program, kernel_name, &err);
+  // Useless for the game of life!
+  compute_kernel = clCreateKernel (program, kernel_name, &err); 
   check (err, "Failed to create compute kernel");
+  
+  compute_kernel_base = clCreateKernel (program, "life", &err);
+  check (err, "Failed to create compute kernel base");
+  
+  compute_kernel_optimized = clCreateKernel (program, "life_opti", &err);
+  check (err, "Failed to create compute kernel optimized");
 
-  printf ("Using kernel: %s\n", kernel_name);
+  //printf ("Using kernel: %s\n", kernel_name);
 
   update_kernel = clCreateKernel (program, "update_texture", &err);
-  check (err, "Failed to create compute kernel");
+  check (err, "Failed to create update kernel");
 
   // Create a command queue
   //
@@ -326,7 +333,7 @@ void ocl_send_image (unsigned *image)
   PRINT_DEBUG ('o', "Initial image sent to device.\n");
 }
 
-//origin
+// Useless for the game of life!
 unsigned ocl_compute (unsigned nb_iter)
 {
   size_t global[2] = { SIZE, SIZE };  // global domain size for our calculation
@@ -372,12 +379,12 @@ unsigned ocl_base (unsigned nb_iter)
 								0, NULL, NULL);
 	check (err, "Failed to write to change_buffer");
 
-    err = clSetKernelArg (compute_kernel, 0, sizeof (cl_mem), &cur_buffer);
-    err = clSetKernelArg (compute_kernel, 1, sizeof (cl_mem), &next_buffer);
-    err = clSetKernelArg (compute_kernel, 2, sizeof (cl_mem), &change_buffer);
+    err = clSetKernelArg (compute_kernel_base, 0, sizeof (cl_mem), &cur_buffer);
+    err = clSetKernelArg (compute_kernel_base, 1, sizeof (cl_mem), &next_buffer);
+    err = clSetKernelArg (compute_kernel_base, 2, sizeof (cl_mem), &change_buffer);
     check (err, "Failed to set kernel arguments");
 
-    err = clEnqueueNDRangeKernel (queue, compute_kernel, 2, NULL, global, local,
+    err = clEnqueueNDRangeKernel (queue, compute_kernel_base, 2, NULL, global, local,
 				  0, NULL, NULL);
     check(err, "Failed to execute kernel");
 
@@ -420,14 +427,14 @@ unsigned ocl_optimized (unsigned nb_iter)
 								buf, 0, NULL, NULL);
 	check (err, "Failed to write to next_tile_buffer");
 
-    err = clSetKernelArg (compute_kernel, 0, sizeof (cl_mem), &cur_buffer);
-    err = clSetKernelArg (compute_kernel, 1, sizeof (cl_mem), &next_buffer);
-    err = clSetKernelArg (compute_kernel, 2, sizeof (cl_mem), &change_buffer);
-	err = clSetKernelArg (compute_kernel, 3, sizeof (cl_mem), &cur_tile_buffer);
-	err = clSetKernelArg (compute_kernel, 4, sizeof (cl_mem), &next_tile_buffer);
+    err = clSetKernelArg (compute_kernel_optimized, 0, sizeof (cl_mem), &cur_buffer);
+    err = clSetKernelArg (compute_kernel_optimized, 1, sizeof (cl_mem), &next_buffer);
+    err = clSetKernelArg (compute_kernel_optimized, 2, sizeof (cl_mem), &change_buffer);
+	err = clSetKernelArg (compute_kernel_optimized, 3, sizeof (cl_mem), &cur_tile_buffer);
+	err = clSetKernelArg (compute_kernel_optimized, 4, sizeof (cl_mem), &next_tile_buffer);
     check (err, "Failed to set kernel arguments");
 
-    err = clEnqueueNDRangeKernel (queue, compute_kernel, 2, NULL, global, local,
+    err = clEnqueueNDRangeKernel (queue, compute_kernel_optimized, 2, NULL, global, local,
 				  0, NULL, NULL);
     check(err, "Failed to execute kernel");
 
