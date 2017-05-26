@@ -201,8 +201,8 @@ void graphics_init (int *argc, char *argv[])
   }
 
   // Initialisation de SDL
-  if (SDL_Init (SDL_INIT_VIDEO) != 0)
-    exit_with_error ("SDL_Init");
+  //if (SDL_Init (SDL_INIT_VIDEO) != 0)
+   // exit_with_error ("SDL_Init");
 
   if (display) {
 
