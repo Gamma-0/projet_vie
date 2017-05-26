@@ -2,7 +2,9 @@
 
 ## plot speed up curves
 ## arguments are filenames - lines of data files must be "#threads time" format
-## the last argument is the reference time measure
+## the secondlast argument is the reference time measure
+## the second-to-last argument is the reference time measure
+## the last argument is the filename
 
 library(Hmisc) # contains errbar
 
