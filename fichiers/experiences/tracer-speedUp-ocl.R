@@ -1,0 +1,63 @@
+#!/usr/bin/env Rscript
+
+## plot speed up curves
+## arguments are filenames - lines of data files must be "#threads time" format
+## the secondlast argument is the reference time measure
+## the second-to-last argument is the reference time measure
+## the last argument is the filename
+
+library(Hmisc) # contains errbar
+
+args = commandArgs(trailingOnly=TRUE)
+
+
+nbFichiers = length(args) - 2
+
+if (nbFichiers < 1) {
+  stop("At least two argument must be supplied filename [list of filenames] reference-time", call.=FALSE)
+}
+
+
+refTime = as.numeric(args[nbFichiers+1])
+
+tables <- vector(mode = "list", length = nbFichiers)
+sdtables <- vector(mode = "list", length = nbFichiers) #sd = standard deviation
+xmax = 0
+ymax = 0
+
+
+for(i in 1:nbFichiers)
+    {
+        tmp = read.table(args[i])
+        tmp[,2] = refTime / tmp[,2]  # compute speed up 
+        tables[[i]] = aggregate(tmp[,2], tmp[1], mean)
+        sdtmp = aggregate(tmp[,2], tmp[1], sd)
+	sdtmp[is.na(sdtmp)] <- 0
+	sdtables[[i]] = sdtmp
+        xmax = max(max(tables[[i]][,1]),xmax)
+        ymax = max(max(tables[[i]][,2]+ sdtables[[i]][,2]),ymax)
+    }
+
+pdf(paste("speedup_", args[nbFichiers+2], ".pdf", sep=""))
+#pdf("speedup.pdf")
+
+
+plot(1,type='n',xlim=c(8,xmax),ylim=c(0,ymax+1),xlab='tile size', ylab='speedup')
+
+legend("topleft", legend = args[1:nbFichiers], col=1:nbFichiers, pch=1)
+
+title(main=paste("Speedup (reference time = " ,  args[nbFichiers+1],")"))
+
+
+for (i in 1:nbFichiers){
+    lines(tables[[i]][,1],tables[[i]][,2], type='o', col=i, lwd=2)
+    par(fg=i)
+    errbar( tables[[i]][,1],tables[[i]][,2],
+            tables[[i]][,2]+sdtables[[i]][,2],
+            tables[[i]][,2]-sdtables[[i]][,2],
+            col=i,add=TRUE)
+}
+
+
+
+dev.off()

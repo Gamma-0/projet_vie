@@ -46,18 +46,18 @@ unsigned compute_v9 (unsigned nb_iter);
 unsigned compute_v10 (unsigned nb_iter);
 
 
-void_func_t first_touch [] = { // TODO
-	NULL, 				// sequential base
-	NULL,//first_touch_v1, 	// sequential tiled
-	NULL,//first_touch_v2, 	// sequential optimized
-	NULL, 				// OpenMP for base
-	NULL, 				// OpenMP for tiled
-	NULL, 				// OpenMP for optimized
-	NULL, 				// OpenMP task tiled
-	NULL, 				// OpenMP task optimized
-	NULL, 				// OpenCl base
+void_func_t first_touch [] = {
+	first_touch_v1,		// sequential base
+	first_touch_v1,		// sequential tiled
+	first_touch_v1,		// sequential optimized
+	first_touch_v1,		// OpenMP for base
+	first_touch_v1,		// OpenMP for tiled
+	first_touch_v1,		// OpenMP for optimized
+	first_touch_v1,		// OpenMP task tiled
+	first_touch_v1,		// OpenMP task optimized
+	NULL,				// OpenCl base
 	NULL, 				// OpenCl optimized
-	NULL 				// OpenCl + OpenMP
+	first_touch_v1		// OpenCl + OpenMP
 };
 
 void_func_t init [] = {
