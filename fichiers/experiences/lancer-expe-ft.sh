@@ -12,9 +12,9 @@ ITE=$(seq $ITEMAX) # nombre de mesures
 THREADS=$(seq 2 2 24) # nombre de threads
 
 S=1024 #256 1024 4096
-PARAM="-n -s $S" # parametres commun à toutes les executions 
+PARAM="-n -s $S -ft" # parametres commun à toutes les executions 
 
-I="10 100 1000" # nombre d'itération
+I="1000" # nombre d'itération
 T="16 32" # nombre de tuiles
 
 
@@ -29,16 +29,6 @@ execute (){
 	done
 }
 
-executeCL (){ #Pas de threads pour CL, mais plutôt des tuiles
-	EXE="./$PATH_PROG $* $PARAM"
-	OUTPUT="$PATH_RES$(echo $EXE | tr -d ' ./')"
-	for nb in $ITE; do
-		for tile in $T; do
-			echo -n "$tile " >> $OUTPUT ;
-			TILEX=$tile TILEY=$tile $EXE 2>> $OUTPUT;
-		done;
-	done
-}
 
 filename (){
 	EXE="./$PATH_PROG $* $PARAM"
@@ -53,9 +43,6 @@ getMedianSpeed (){
 	for nb in $ITE; do \
 		tmp=$( { $EXE; } 2>&1 > /dev/null );
 		sum=$( awk "BEGIN{print $tmp + $sum}" );
-		#for OMP_NUM_THREADS in $THREADS; do		#To avoid useless calculation for each thread (thread have no effect here!)
-		#	echo "$OMP_NUM_THREADS $tmp" >> $OUTPUT ;
-		#done;
 	done
 	awk "BEGIN {print $sum / $ITEMAX}"
 }
@@ -101,17 +88,10 @@ for i in $I; do
 		rScriptArgs[$v]="$(filename -v $v -i $i)";
 	done;
 		
-	Rscript ${PATH_EXP}tracer-speedUp.R ${rScriptArgs[0]} ${rScriptArgs[3]} $sequentialBaseSpeed "sequential_base_i${i}_s${S}"
-	Rscript ${PATH_EXP}tracer-speedUp.R ${rScriptArgs[1]} ${rScriptArgs[4]} ${rScriptArgs[6]} $sequentialTiledSpeed "sequential_tiled_i${i}_s${S}"
-	Rscript ${PATH_EXP}tracer-speedUp.R ${rScriptArgs[2]} ${rScriptArgs[5]} ${rScriptArgs[7]} $sequentialOptimizedSpeed "sequential_optimized_i${i}_s${S}"
+	Rscript ${PATH_EXP}tracer-speedUp.R ${rScriptArgs[0]} ${rScriptArgs[3]} $sequentialBaseSpeed "sequential_base_i${i}_s${S}_ft"
+	Rscript ${PATH_EXP}tracer-speedUp.R ${rScriptArgs[1]} ${rScriptArgs[4]} ${rScriptArgs[6]} $sequentialTiledSpeed "sequential_tiled_i${i}_s${S}_ft"
+	Rscript ${PATH_EXP}tracer-speedUp.R ${rScriptArgs[2]} ${rScriptArgs[5]} ${rScriptArgs[7]} $sequentialOptimizedSpeed "sequential_optimized_i${i}_s${S}_ft"
 	
-	for v in $(seq 8 9); do
-		executeCL -v $v -i $i;
-		rScriptArgs[$v]="$(filename -v $v -i $i)";
-	done;
-	
-	Rscript ${PATH_EXP}tracer-speedUp-ocl.R ${rScriptArgs[8]} ${rScriptArgs[9]} $sequentialBaseSpeed "ocl_i${i}_s${S}"
-
 done
 
 mv speedup_* ${PATH_R}
